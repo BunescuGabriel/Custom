@@ -14,6 +14,34 @@ def create_audio_generation(**values: object) -> AudioGeneration:
         return generation
 
 
+def find_completed_audio_generation(
+    *,
+    text: str,
+    voice_id: str,
+    rate_percent: int,
+    pitch_hz: int,
+) -> AudioGeneration | None:
+    with get_session() as session:
+        row = (
+            session.query(AudioGeneration)
+            .filter(
+                AudioGeneration.text == text,
+                AudioGeneration.voice_id == voice_id,
+                AudioGeneration.rate_percent == rate_percent,
+                AudioGeneration.pitch_hz == pitch_hz,
+                AudioGeneration.status == "completed",
+                AudioGeneration.file_path.isnot(None),
+            )
+            .order_by(AudioGeneration.created_at.desc(), AudioGeneration.id.desc())
+            .first()
+        )
+        if row is None:
+            return None
+
+        session.expunge(row)
+        return row
+
+
 def list_audio_generations(limit: int = 50) -> Sequence[AudioGeneration]:
     with get_session() as session:
         rows = (

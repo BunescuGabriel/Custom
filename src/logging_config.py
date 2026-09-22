@@ -1,4 +1,5 @@
 import logging
+import sys
 from logging.handlers import RotatingFileHandler
 
 from src.config import LOG_DIR
@@ -26,5 +27,12 @@ def configure_logging() -> None:
     )
     file_handler.setFormatter(formatter)
 
-    logging.basicConfig(level=logging.INFO, handlers=[file_handler])
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        handlers=[file_handler, console_handler],
+        force=True,
+    )
     _configured = True

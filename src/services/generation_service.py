@@ -5,7 +5,7 @@ from time import perf_counter
 from mutagen.mp3 import MP3
 
 from src.db.models import AudioGeneration
-from src.db.repositories import create_audio_generation
+from src.db.repositories import create_audio_generation, find_completed_audio_generation
 from src.services.text_preprocessor import clean_text, make_title
 from src.services.tts_service import text_to_audio
 
@@ -31,6 +31,24 @@ def generate_audio_record(
     cleaned_text = clean_text(text)
     if not cleaned_text:
         raise ValueError("Textul nu poate fi gol.")
+
+    cached_record = find_completed_audio_generation(
+        text=cleaned_text,
+        voice_id=voice_id,
+        rate_percent=rate_percent,
+        pitch_hz=pitch_hz,
+    )
+    if cached_record and cached_record.file_path and Path(cached_record.file_path).exists():
+        logger.info(
+            "audio_generation_cache_hit id=%s language=%s voice_name=%s chars=%s rate=%s pitch=%s",
+            cached_record.id,
+            language,
+            voice_name,
+            len(cleaned_text),
+            rate_percent,
+            pitch_hz,
+        )
+        return cached_record
 
     started_at = perf_counter()
     logger.info(
