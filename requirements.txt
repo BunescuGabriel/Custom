@@ -1,0 +1,6 @@
+streamlit==1.38.0
+edge-tts>=6.1.12
+sqlalchemy>=2.0.35
+alembic>=1.13.2
+mutagen>=1.47.0
+pre-commit>=4.3.0
