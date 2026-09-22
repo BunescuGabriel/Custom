@@ -110,7 +110,7 @@ def render_generator_view() -> None:
             st.text_area(
                 "Text",
                 key="text_input",
-                height=430,
+                height=360,
                 placeholder="Scrie textul pe care vrei sa il transformi in audio...",
                 disabled=disabled,
             )

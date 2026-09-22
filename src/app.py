@@ -11,14 +11,33 @@ def _render_styles() -> None:
         """
         <style>
             .block-container {
-                max-width: 1180px;
-                padding-top: 2.5rem;
+                width: min(100% - 2rem, 1280px);
+                max-width: 1280px;
+                padding: clamp(1rem, 3vw, 2.5rem) 0 2rem;
             }
 
             div[data-testid="stTextArea"] textarea {
-                min-height: 430px;
+                height: clamp(260px, 46vh, 430px);
+                min-height: 260px;
                 resize: vertical;
                 line-height: 1.55;
+            }
+
+            h1 {
+                font-size: clamp(2.1rem, 4vw, 3.4rem) !important;
+                line-height: 1.08 !important;
+            }
+
+            div[data-testid="stTabs"] button {
+                min-height: 42px;
+            }
+
+            div[data-testid="stExpander"] summary {
+                overflow-wrap: anywhere;
+            }
+
+            div[data-testid="stAudio"] {
+                width: 100%;
             }
 
             .generation-panel {
@@ -54,6 +73,52 @@ def _render_styles() -> None:
 
             @keyframes spin {
                 to { transform: rotate(360deg); }
+            }
+
+            @media (max-width: 900px) {
+                .block-container {
+                    width: min(100% - 1rem, 760px);
+                    padding-top: 1rem;
+                }
+
+                div[data-testid="stTextArea"] textarea {
+                    height: clamp(240px, 42vh, 340px);
+                    min-height: 220px;
+                }
+
+                div[data-testid="stHorizontalBlock"] {
+                    flex-wrap: wrap;
+                    gap: 0.75rem;
+                }
+
+                div[data-testid="stHorizontalBlock"] > div {
+                    min-width: 100% !important;
+                    flex: 1 1 100% !important;
+                }
+
+                div[data-testid="stButton"] button,
+                div[data-testid="stDownloadButton"] button {
+                    width: 100%;
+                }
+
+                .generation-panel {
+                    align-items: flex-start;
+                }
+            }
+
+            @media (max-width: 480px) {
+                .block-container {
+                    width: calc(100% - 0.75rem);
+                    padding-bottom: 1rem;
+                }
+
+                div[data-testid="stTextArea"] textarea {
+                    height: 260px;
+                }
+
+                .generation-panel {
+                    padding: 12px;
+                }
             }
         </style>
         """,

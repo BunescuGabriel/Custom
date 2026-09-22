@@ -98,7 +98,7 @@ def _render_audio_row(row: AudioGeneration) -> None:
         st.text_area(
             "Text folosit",
             value=row.text,
-            height=160,
+            height=180,
             disabled=True,
             key=f"text_{row.id}",
         )
