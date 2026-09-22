@@ -7,6 +7,65 @@ DATABASE_PATH = BASE_DIR / "app.db"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH.as_posix()}"
 TTS_TIMEOUT_SECONDS = 180
 
+AUDIO_PROFILES = {
+    "story": {
+        "label": "Story",
+        "rate_percent": -5,
+        "pitch_hz": 0,
+        "voice_by_language": {
+            "Romana": "Emil",
+            "Rusa": "Dmitry",
+            "Engleza": "Guy",
+            "Franceza": "Henri",
+            "Germana": "Conrad",
+            "Italiana": "Diego",
+            "Spaniola": "Alvaro",
+        },
+    },
+    "dialogue": {
+        "label": "Dialogue",
+        "rate_percent": -5,
+        "pitch_hz": 0,
+        "voice_by_language": {
+            "Romana": "Alina",
+            "Rusa": "Svetlana",
+            "Engleza": "Jenny",
+            "Franceza": "Denise",
+            "Germana": "Katja",
+            "Italiana": "Elsa",
+            "Spaniola": "Elvira",
+        },
+    },
+    "informative": {
+        "label": "Informative",
+        "rate_percent": 0,
+        "pitch_hz": 0,
+        "voice_by_language": {
+            "Romana": "Alina",
+            "Rusa": "Svetlana",
+            "Engleza": "Jenny",
+            "Franceza": "Denise",
+            "Germana": "Katja",
+            "Italiana": "Elsa",
+            "Spaniola": "Elvira",
+        },
+    },
+    "short_message": {
+        "label": "Short message",
+        "rate_percent": 2,
+        "pitch_hz": 0,
+        "voice_by_language": {
+            "Romana": "Alina",
+            "Rusa": "Svetlana",
+            "Engleza": "Jenny",
+            "Franceza": "Denise",
+            "Germana": "Katja",
+            "Italiana": "Elsa",
+            "Spaniola": "Elvira",
+        },
+    },
+}
+
 VOICE_OPTIONS = {
     "Romana": {
         "Alina": "ro-RO-AlinaNeural",

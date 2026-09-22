@@ -4,6 +4,7 @@ import streamlit as st
 
 from src.config import VOICE_OPTIONS
 from src.services.generation_service import generate_audio_record
+from src.services.text_analyzer import recommend_audio_settings
 
 
 def _init_generator_state() -> None:
@@ -12,8 +13,12 @@ def _init_generator_state() -> None:
         "generation_request": None,
         "audio_record": None,
         "generation_error": None,
+        "auto_settings_enabled": True,
+        "detected_profile": "story",
+        "last_auto_settings_text": "",
+        "last_auto_settings_signature": "",
         "language_name": "Rusa",
-        "voice_name": "Svetlana",
+        "voice_name": "Dmitry",
         "rate_percent": -5,
         "pitch_hz": 0,
     }
@@ -37,6 +42,38 @@ def _start_generation() -> None:
     st.session_state.is_generating = True
     st.session_state.audio_record = None
     st.session_state.generation_error = None
+
+
+def _apply_auto_settings() -> None:
+    text = st.session_state.get("text_input", "")
+    cleaned_text = text.strip()
+    if not st.session_state.auto_settings_enabled or not cleaned_text:
+        return
+
+    recommendation = recommend_audio_settings(cleaned_text)
+    signature = (
+        f"{cleaned_text}|{recommendation.language_name}|{recommendation.voice_name}|"
+        f"{recommendation.profile_name}|{recommendation.rate_percent}|{recommendation.pitch_hz}"
+    )
+
+    values_already_applied = (
+        st.session_state.language_name == recommendation.language_name
+        and st.session_state.voice_name == recommendation.voice_name
+        and st.session_state.rate_percent == recommendation.rate_percent
+        and st.session_state.pitch_hz == recommendation.pitch_hz
+        and st.session_state.detected_profile == recommendation.profile_name
+        and st.session_state.last_auto_settings_signature == signature
+    )
+    if values_already_applied:
+        return
+
+    st.session_state.language_name = recommendation.language_name
+    st.session_state.voice_name = recommendation.voice_name
+    st.session_state.rate_percent = recommendation.rate_percent
+    st.session_state.pitch_hz = recommendation.pitch_hz
+    st.session_state.detected_profile = recommendation.profile_name
+    st.session_state.last_auto_settings_text = cleaned_text
+    st.session_state.last_auto_settings_signature = signature
 
 
 def _render_generation_status() -> None:
@@ -116,11 +153,26 @@ def render_generator_view() -> None:
             )
 
         with right_column:
+            st.checkbox(
+                "Auto settings",
+                key="auto_settings_enabled",
+                disabled=disabled,
+            )
+            _apply_auto_settings()
+
+            if (
+                st.session_state.auto_settings_enabled
+                and st.session_state.get("text_input", "").strip()
+            ):
+                st.caption(f"Profil detectat: {st.session_state.detected_profile}")
+
+            settings_disabled = disabled or st.session_state.auto_settings_enabled
+
             st.selectbox(
                 "Limba",
                 options=list(VOICE_OPTIONS.keys()),
                 key="language_name",
-                disabled=disabled,
+                disabled=settings_disabled,
             )
 
             voice_options = VOICE_OPTIONS[st.session_state.language_name]
@@ -131,7 +183,7 @@ def render_generator_view() -> None:
                 "Voce",
                 options=list(voice_options.keys()),
                 key="voice_name",
-                disabled=disabled,
+                disabled=settings_disabled,
             )
 
             st.slider(
@@ -141,7 +193,7 @@ def render_generator_view() -> None:
                 step=5,
                 format="%d%%",
                 key="rate_percent",
-                disabled=disabled,
+                disabled=settings_disabled,
             )
 
             st.slider(
@@ -151,7 +203,7 @@ def render_generator_view() -> None:
                 step=5,
                 format="%d Hz",
                 key="pitch_hz",
-                disabled=disabled,
+                disabled=settings_disabled,
             )
 
             st.button(
