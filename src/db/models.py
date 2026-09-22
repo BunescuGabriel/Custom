@@ -12,6 +12,7 @@ class AudioGeneration(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(140), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     language: Mapped[str] = mapped_column(String(64), nullable=False)
     voice_name: Mapped[str] = mapped_column(String(64), nullable=False)
     voice_id: Mapped[str] = mapped_column(String(120), nullable=False)

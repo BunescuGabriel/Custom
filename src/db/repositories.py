@@ -1,10 +1,20 @@
 from collections.abc import Sequence
+from hashlib import sha256
 
 from src.db.database import get_session
 from src.db.models import AudioGeneration
 
 
+def _make_content_hash(text: str) -> str:
+    return sha256(text.encode("utf-8")).hexdigest()
+
+
 def create_audio_generation(**values: object) -> AudioGeneration:
+    text = values.get("text")
+    if not isinstance(text, str):
+        raise TypeError("Audio generation text must be a string.")
+
+    values["content_hash"] = _make_content_hash(text)
     with get_session() as session:
         generation = AudioGeneration(**values)
         session.add(generation)
@@ -21,10 +31,12 @@ def find_completed_audio_generation(
     rate_percent: int,
     pitch_hz: int,
 ) -> AudioGeneration | None:
+    content_hash = _make_content_hash(text)
     with get_session() as session:
         row = (
             session.query(AudioGeneration)
             .filter(
+                AudioGeneration.content_hash == content_hash,
                 AudioGeneration.text == text,
                 AudioGeneration.voice_id == voice_id,
                 AudioGeneration.rate_percent == rate_percent,
