@@ -8,15 +8,15 @@ from sqlalchemy import engine_from_config, pool
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_DIR))
 
-from src.config import DATABASE_URL  # noqa: E402
-from src.db import models  # noqa: F401, E402
-from src.db.database import Base  # noqa: E402
+from src.config import DATA_DIR, DATABASE_URL
+from src.db import models  # noqa: F401
+from src.db.database import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 
@@ -34,6 +34,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

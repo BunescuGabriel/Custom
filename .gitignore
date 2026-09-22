@@ -30,6 +30,7 @@ dist/
 htmlcov/
 
 # App-generated files
+data/
 audio/
 app.db
 app.db-*

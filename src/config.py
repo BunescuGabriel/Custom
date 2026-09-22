@@ -1,9 +1,10 @@
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / "data"
 AUDIO_DIR = BASE_DIR / "audio"
-LOG_DIR = BASE_DIR / "logs"
-DATABASE_PATH = BASE_DIR / "app.db"
+LOG_DIR = DATA_DIR
+DATABASE_PATH = DATA_DIR / "app.db"
 DATABASE_URL = f"sqlite:///{DATABASE_PATH.as_posix()}"
 TTS_TIMEOUT_SECONDS = 180
 

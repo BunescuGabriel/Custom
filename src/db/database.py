@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -6,7 +7,9 @@ from alembic.config import Config
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from src.config import BASE_DIR, DATABASE_URL
+from src.config import BASE_DIR, DATABASE_PATH, DATABASE_URL
+
+logger = logging.getLogger(__name__)
 
 
 class Base(DeclarativeBase):
@@ -27,8 +30,14 @@ def init_db() -> None:
         return
 
     alembic_cfg = Config(str(BASE_DIR / "alembic.ini"))
-    command.upgrade(alembic_cfg, "head")
+    alembic_cfg.attributes["configure_logger"] = False
+    try:
+        command.upgrade(alembic_cfg, "head")
+    except Exception:
+        logger.exception("database_initialization_failed path=%s", DATABASE_PATH)
+        raise
     _database_ready = True
+    logger.info("database_ready path=%s", DATABASE_PATH)
 
 
 @contextmanager
