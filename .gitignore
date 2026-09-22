@@ -31,6 +31,9 @@ htmlcov/
 
 # App-generated files
 audio/
+app.db
+app.db-*
+logs/
 *.mp3
 *.wav
 
