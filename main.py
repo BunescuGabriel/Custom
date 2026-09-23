@@ -13,7 +13,14 @@ def main() -> None:
     if get_script_run_ctx(suppress_warning=True) is None:
         configure_logging()
         init_db()
-        sys.argv = ["streamlit", "run", str(Path(__file__).resolve())]
+        sys.argv = [
+            "streamlit",
+            "run",
+            str(Path(__file__).resolve()),
+            "--server.address=127.0.0.1",
+            "--server.maxUploadSize=100",
+            "--browser.gatherUsageStats=false",
+        ]
         sys.exit(streamlit_cli.main())
 
     run_app()

@@ -5,13 +5,20 @@ target-version = ["py313"]
 [tool.isort]
 line_length = 100
 profile = "black"
+skip_gitignore = true
 
 [tool.ruff]
 line-length = 100
 target-version = "py313"
 
 [tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B"]
 fixable = ["ALL"]
 
 [tool.ruff.lint.per-file-ignores]
 "migrations/env.py" = ["E402"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = ["integration: requires real FFmpeg and FFprobe", "browser: requires Chromium or a local Chrome/Edge installation"]
