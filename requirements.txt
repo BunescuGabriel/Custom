@@ -3,4 +3,5 @@ edge-tts>=6.1.12
 sqlalchemy>=2.0.35
 alembic>=1.13.2
 mutagen>=1.47.0
+Pillow>=10.4.0
 pre-commit>=4.3.0

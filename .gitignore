@@ -32,11 +32,17 @@ htmlcov/
 # App-generated files
 data/
 audio/
+backgrounds/
+videos/
 app.db
 app.db-*
 logs/
 *.mp3
 *.wav
+*.mp4
+*.m4v
+*.mov
+*.webm
 
 # OS files
 .DS_Store

@@ -1,8 +1,10 @@
 from collections.abc import Sequence
 from hashlib import sha256
 
+from sqlalchemy.orm import selectinload
+
 from src.db.database import get_session
-from src.db.models import AudioGeneration
+from src.db.models import AudioGeneration, VideoGeneration
 
 
 def _make_content_hash(text: str) -> str:
@@ -64,4 +66,27 @@ def list_audio_generations(limit: int = 50) -> Sequence[AudioGeneration]:
         )
         for row in rows:
             session.expunge(row)
+        return rows
+
+
+def create_video_generation(**values: object) -> VideoGeneration:
+    with get_session() as session:
+        generation = VideoGeneration(**values)
+        session.add(generation)
+        session.flush()
+        session.refresh(generation)
+        session.expunge(generation)
+        return generation
+
+
+def list_video_generations(limit: int = 50) -> Sequence[VideoGeneration]:
+    with get_session() as session:
+        rows = (
+            session.query(VideoGeneration)
+            .options(selectinload(VideoGeneration.audio_generation))
+            .order_by(VideoGeneration.created_at.desc(), VideoGeneration.id.desc())
+            .limit(limit)
+            .all()
+        )
+        session.expunge_all()
         return rows
