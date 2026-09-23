@@ -4,28 +4,23 @@ Run the application with `python main.py` from the project's virtual environment
 
 ## Local files
 
-- `data/app.db`: SQLite database containing generation history.
-- `data/app.log`: application logs, rotated at 10 MiB with up to 100 backups.
-- `audio/`: generated audio files referenced by the database.
-- `backgrounds/`: local copies of the video backgrounds selected for MP4.
-- `videos/`: generated vertical MP4 files and their subtitle files.
+- `media/data/app.db`: SQLite database containing generation history.
+- `media/data/app.log`: application logs, rotated at 10 MiB with up to 100 backups.
+- `media/audio/`: generated audio files referenced by the database.
+- `media/backgrounds/`: local copies of the video backgrounds selected for MP4.
+- `media/videos/`: generated vertical MP4 files, subtitles, and temporary title overlays.
 
-The `data` directory is created automatically and excluded from Git. Paths are
+The `media` directory is created automatically and excluded from Git. Paths are
 resolved relative to the project, independently of the working directory.
 
 At startup, `python main.py` initializes storage before launching Streamlit,
 without waiting for the browser to open:
 
-- If `data/` is missing, it creates the directory and `data/app.db`.
-- If `data/` exists but `app.db` is missing, it creates the database inside it.
+- If `media/data/` is missing, it creates the directory and `media/data/app.db`.
+- If `media/data/` exists but `app.db` is missing, it creates the database inside it.
 - If both exist, it reuses the database and preserves the existing history.
 
 Alembic automatically creates or updates the required database tables.
-
-When updating an older installation, stop the application and move the existing
-`app.db` into `data/app.db` before restarting to preserve its history. Do not
-overwrite an existing destination database. Move `logs/app.log*` into `data/`
-to retain previous logs as well.
 
 ## Logging
 

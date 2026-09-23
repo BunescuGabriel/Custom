@@ -1,10 +1,11 @@
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-AUDIO_DIR = BASE_DIR / "audio"
-BACKGROUND_DIR = BASE_DIR / "backgrounds"
-VIDEO_DIR = BASE_DIR / "videos"
+MEDIA_DIR = BASE_DIR / "media"
+DATA_DIR = MEDIA_DIR / "data"
+AUDIO_DIR = MEDIA_DIR / "audio"
+BACKGROUND_DIR = MEDIA_DIR / "backgrounds"
+VIDEO_DIR = MEDIA_DIR / "videos"
 SUBTITLE_DIR = VIDEO_DIR / "subtitles"
 TITLE_OVERLAY_DIR = VIDEO_DIR / "title_overlays"
 LOG_DIR = DATA_DIR

@@ -30,6 +30,7 @@ dist/
 htmlcov/
 
 # App-generated files
+media/
 data/
 audio/
 backgrounds/
