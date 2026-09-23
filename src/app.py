@@ -4,6 +4,7 @@ from src.db.database import init_db
 from src.logging_config import configure_logging
 from src.ui.generator_view import render_generator_view
 from src.ui.history_view import render_history_view
+from src.ui.video_history_view import render_video_history_view
 
 
 def _render_styles() -> None:
@@ -138,8 +139,12 @@ def run_app() -> None:
 
     st.title("Text to Audio")
 
-    generator_tab, history_tab = st.tabs(["Generator", "Istoric"])
+    generator_tab, history_tab, video_history_tab = st.tabs(
+        ["Generator", "Istoric audio", "Istoric video"]
+    )
     with generator_tab:
         render_generator_view()
     with history_tab:
         render_history_view()
+    with video_history_tab:
+        render_video_history_view()
