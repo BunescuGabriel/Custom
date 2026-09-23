@@ -13,7 +13,8 @@ from src.db import models  # noqa: F401
 from src.db.database import Base
 
 config = context.config
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+database_url = config.attributes.get("database_url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name, disable_existing_loggers=False)
@@ -23,7 +24,7 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     context.configure(
-        url=DATABASE_URL,
+        url=database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},

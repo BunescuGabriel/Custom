@@ -3,8 +3,9 @@ import unicodedata
 
 
 def clean_text(text: str) -> str:
-    paragraphs = [line.strip() for line in text.splitlines() if line.strip()]
-    return "\n\n".join(paragraphs)
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n").strip()
+    paragraphs = re.split(r"\n\s*\n", normalized)
+    return "\n\n".join(" ".join(paragraph.split()) for paragraph in paragraphs if paragraph.strip())
 
 
 def make_title(text: str, max_length: int = 140) -> str:

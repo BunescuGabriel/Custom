@@ -10,7 +10,7 @@ repos:
       - id: debug-statements
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.15
+    rev: v0.16.8
     hooks:
       - id: ruff
         name: "[PY] Ruff"
@@ -24,7 +24,8 @@ repos:
         args: ["--target-version", "py313"]
 
   - repo: https://github.com/pycqa/isort
-    rev: 8.0.1
+    rev: 9.0.1
     hooks:
       - id: isort
         name: "[PY] Isort imports"
+        entry: python -X utf8 -m isort

@@ -25,6 +25,7 @@ dist/
 *.egg-info/
 
 # Test and coverage output
+.ruff_cache/
 .pytest_cache/
 .coverage
 htmlcov/

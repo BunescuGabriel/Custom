@@ -1,340 +1,395 @@
-from pathlib import Path
-from uuid import uuid4
+import hashlib
+import html
+import json
+from datetime import UTC, datetime
 
 import streamlit as st
+from PIL import Image, ImageDraw, ImageFont
 
-from src.config import BACKGROUND_DIR, VOICE_OPTIONS
-from src.services.generation_service import generate_audio_record
-from src.services.text_analyzer import recommend_audio_settings
-from src.services.text_preprocessor import make_title
-from src.services.video_service import (
-    VideoServiceError,
-    generate_video_record,
-    is_ffmpeg_available,
+from src.config import (
+    AUDIO_PROFILES,
+    MAX_TEXT_CHARACTERS,
+    VIDEO_TITLE_DURATION_SECONDS,
+    VOICE_OPTIONS,
 )
+from src.db.models import AudioGeneration, GenerationJob, VideoGeneration
+from src.db.repositories import get_record
+from src.services.form_service import estimate_seconds, normalize_form, validate_request
+from src.services.job_service import ACTIVE_STATUSES, cancel_job, submit_job
+from src.services.media_service import save_background
+from src.services.operations import describe_error
+from src.services.storage import media_reference, resolve_media_path, safe_unlink
+from src.services.text_preprocessor import clean_text
+from src.services.title_overlay_service import (
+    _make_title_layout,
+    create_title_overlay,
+    resolve_font,
+)
+from src.services.video_service import extract_preview, validate_video_tools
+from src.ui.common import as_utc, render_media, render_snapshot
+from src.ui.labels import CROP_LABELS, LANGUAGE_LABELS, STATUS_LABELS
 
 
 def _init_generator_state() -> None:
     defaults = {
-        "is_generating": False,
-        "generation_request": None,
-        "audio_record": None,
-        "generation_error": None,
-        "video_record": None,
-        "output_format": "MP3",
+        "text_input": "",
         "title_input": "",
         "last_auto_title": "",
         "last_title_source_text": "",
         "auto_settings_enabled": True,
-        "detected_profile": "story",
-        "last_auto_settings_text": "",
-        "last_auto_settings_signature": "",
-        "language_name": "Rusa",
-        "voice_name": "Dmitry",
-        "rate_percent": -5,
+        "language_name": "Romana",
+        "voice_name": "Alina",
+        "rate_percent": 0,
         "pitch_hz": 0,
+        "output_format": "MP3",
+        "generation_error": None,
+        "active_job_id": None,
+        "intro_seconds": VIDEO_TITLE_DURATION_SECONDS,
+        "crop_position": "center",
+        "allow_approximate": False,
+        "force_synthesis": False,
     }
+    draft = st.session_state.get("generator_draft", {})
     for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+        current = st.session_state.get(key, draft.get(key, value))
+        st.session_state[key] = value if current is None else current
+    restored = st.session_state.pop("restore_request", None)
+    if restored:
+        audio = restored["audio"]
+        st.session_state.update(
+            {
+                "text_input": audio["text"],
+                "title_input": audio["title"],
+                "language_name": audio["language"],
+                "voice_name": audio["voice_name"],
+                "rate_percent": audio["rate_percent"],
+                "pitch_hz": audio["pitch_hz"],
+                "auto_settings_enabled": False,
+                "output_format": restored["output_format"],
+                "reuse_audio_id": restored.get("audio_generation_id"),
+                "reuse_audio_snapshot": audio,
+                "reuse_background_path": restored.get("background_path"),
+                "intro_seconds": round(
+                    restored.get("intro_seconds", VIDEO_TITLE_DURATION_SECONDS) * 2
+                )
+                / 2,
+                "crop_position": restored.get("crop_position", "center"),
+                "allow_approximate": restored.get("allow_approximate", False),
+            }
+        )
+        st.session_state.pop("background_video", None)
+        st.session_state.pop("background_upload", None)
+    query_job = st.query_params.get("job")
+    if query_job and not st.session_state.active_job_id:
+        st.session_state.active_job_id = query_job
+
+
+def _save_uploaded_background():
+    uploaded = st.session_state.get("background_upload") or st.session_state.get("background_video")
+    if uploaded is None:
+        reused = st.session_state.get("reuse_background_path")
+        if reused:
+            return resolve_media_path(reused)
+        raise ValueError("Selectează un videoclip de fundal pentru MP4.")
+    data = uploaded.getvalue()
+    signature = hashlib.sha256(data).hexdigest()
+    cached = st.session_state.get("prepared_background")
+    if cached and cached[0] == signature:
+        path = resolve_media_path(cached[1])
+        if path.is_file():
+            return path
+    path = save_background(uploaded.name, data)
+    st.session_state.prepared_background = (signature, media_reference(path))
+    return path
 
 
 def _start_generation() -> None:
-    language_name = st.session_state.language_name
-    voice_name = st.session_state.voice_name
-
-    request = {
-        "text": st.session_state.text_input,
-        "title": st.session_state.title_input,
-        "language": language_name,
-        "voice_name": voice_name,
-        "voice_id": VOICE_OPTIONS[language_name][voice_name],
-        "rate_percent": st.session_state.rate_percent,
-        "pitch_hz": st.session_state.pitch_hz,
-    }
-    if st.session_state.output_format == "MP4":
-        background_path = _save_uploaded_background()
-        if background_path is None:
-            st.session_state.generation_error = (
-                "Selecteaza un videoclip de fundal pentru formatul MP4."
+    try:
+        audio = normalize_form(st.session_state)
+        validate_request(audio)
+        parameters = {
+            "audio": audio,
+            "output_format": st.session_state.output_format,
+            "force_synthesis": st.session_state.get("force_synthesis", False),
+        }
+        if st.session_state.output_format == "MP4":
+            validate_video_tools()
+            _make_title_layout(audio["title"])
+            background = _save_uploaded_background()
+            parameters.update(
+                background_path=media_reference(background),
+                intro_seconds=float(st.session_state.intro_seconds),
+                crop_position=st.session_state.crop_position,
+                allow_approximate=st.session_state.allow_approximate,
             )
-            return
-        request["background_path"] = str(background_path)
+            if (
+                not parameters["force_synthesis"]
+                and st.session_state.get("reuse_audio_snapshot") == audio
+                and st.session_state.get("reuse_audio_id")
+            ):
+                parameters["audio_generation_id"] = st.session_state.reuse_audio_id
+        job_id = submit_job(parameters)
+        st.session_state.active_job_id = job_id
+        st.session_state.generation_error = None
+        st.query_params["job"] = job_id
+    except Exception as error:
+        st.session_state.generation_error = describe_error(error)
 
-    st.session_state.generation_request = request
-    st.session_state.is_generating = True
-    st.session_state.audio_record = None
-    st.session_state.video_record = None
-    st.session_state.generation_error = None
 
-
-def _save_uploaded_background() -> Path | None:
-    uploaded_file = st.session_state.get("background_video")
-    if uploaded_file is None:
-        return None
-
-    extension = Path(uploaded_file.name).suffix.lower()
-    if extension not in {".mp4", ".m4v", ".mov", ".webm"}:
-        st.session_state.generation_error = (
-            "Fundalul trebuie sa fie un fisier video MP4, M4V, MOV sau WebM."
+def _render_preview() -> None:
+    frame = title = None
+    try:
+        background = _save_uploaded_background()
+        frame = extract_preview(background, st.session_state.crop_position)
+        title = create_title_overlay(st.session_state.title_input)
+        with Image.open(frame) as source:
+            preview = source.convert("RGBA")
+        with Image.open(title) as overlay:
+            if st.session_state.intro_seconds > 0:
+                preview.alpha_composite(
+                    overlay,
+                    ((preview.width - overlay.width) // 2, (preview.height - overlay.height) // 2),
+                )
+        draw = ImageDraw.Draw(preview)
+        draw.text(
+            (90, preview.height - 360),
+            "Poziția subtitrărilor",
+            font=ImageFont.truetype(resolve_font(), 54),
+            fill="white",
+            stroke_width=3,
+            stroke_fill="black",
         )
-        return None
+        st.image(
+            preview,
+            caption="Încadrarea 9:16. Titlul apare în introducere; subtitrările în timpul narațiunii.",
+            width=270,
+        )
+    except Exception as error:
+        st.warning(describe_error(error))
+    finally:
+        safe_unlink(frame, title)
 
-    BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
-    background_path = BACKGROUND_DIR / f"background-{uuid4().hex}{extension}"
-    background_path.write_bytes(uploaded_file.getvalue())
-    return background_path
 
-
-def _update_title_suggestion() -> None:
-    text = st.session_state.get("text_input", "")
-    if text == st.session_state.last_title_source_text:
+def _render_job() -> None:
+    job_id = st.session_state.get("active_job_id")
+    if not job_id:
         return
-
-    suggested_title = make_title(text)
-    current_title = st.session_state.title_input.strip()
-    if not current_title or current_title == st.session_state.last_auto_title:
-        st.session_state.title_input = suggested_title
-    st.session_state.last_auto_title = suggested_title
-    st.session_state.last_title_source_text = text
-
-
-def _apply_auto_settings() -> None:
-    text = st.session_state.get("text_input", "")
-    cleaned_text = text.strip()
-    if not st.session_state.auto_settings_enabled or not cleaned_text:
+    job = get_record(GenerationJob, job_id)
+    if job is None:
+        st.warning("Lucrarea nu mai există.")
         return
-
-    recommendation = recommend_audio_settings(cleaned_text)
-    signature = (
-        f"{cleaned_text}|{recommendation.language_name}|{recommendation.voice_name}|"
-        f"{recommendation.profile_name}|{recommendation.rate_percent}|{recommendation.pitch_hz}"
-    )
-
-    values_already_applied = (
-        st.session_state.language_name == recommendation.language_name
-        and st.session_state.voice_name == recommendation.voice_name
-        and st.session_state.rate_percent == recommendation.rate_percent
-        and st.session_state.pitch_hz == recommendation.pitch_hz
-        and st.session_state.detected_profile == recommendation.profile_name
-        and st.session_state.last_auto_settings_signature == signature
-    )
-    if values_already_applied:
-        return
-
-    st.session_state.language_name = recommendation.language_name
-    st.session_state.voice_name = recommendation.voice_name
-    st.session_state.rate_percent = recommendation.rate_percent
-    st.session_state.pitch_hz = recommendation.pitch_hz
-    st.session_state.detected_profile = recommendation.profile_name
-    st.session_state.last_auto_settings_text = cleaned_text
-    st.session_state.last_auto_settings_signature = signature
-
-
-def _render_generation_status() -> None:
+    active = job.status in ACTIVE_STATUSES
+    previous = st.session_state.get("job_was_active")
+    st.session_state.job_was_active = active
+    if previous is True and not active:
+        st.rerun()
+    elapsed = (
+        (datetime.now(UTC) if active else as_utc(job.updated_at)) - as_utc(job.created_at)
+    ).total_seconds()
     st.markdown(
-        """
-        <div class="generation-panel">
-            <div class="generation-spinner"></div>
-            <div>
-                <div class="generation-title">Se genereaza audio...</div>
-                <div class="generation-text">Controalele sunt blocate pana se termina procesarea.</div>
-            </div>
-        </div>
-        """,
+        f'<div class="generation-panel" role="status" aria-live="polite" aria-atomic="true">'
+        f"<strong>{html.escape(job.stage)}</strong> · {elapsed:.0f} secunde</div>",
         unsafe_allow_html=True,
     )
-
-
-def _process_generation() -> None:
-    request = st.session_state.generation_request
-    if not request:
-        return
-
-    try:
-        background_path = request.pop("background_path", None)
-        audio_record = generate_audio_record(**request)
-        st.session_state.audio_record = audio_record
-        if background_path is not None:
-            st.session_state.video_record = generate_video_record(
-                audio_record=audio_record,
-                background_path=Path(background_path),
+    st.caption(f"Lucrare: {job.id} · {STATUS_LABELS.get(job.status, job.status)}")
+    if active:
+        st.button(
+            "Anulează generarea",
+            key=f"cancel_{job.id}",
+            on_click=cancel_job,
+            args=(job.id,),
+            disabled=job.cancel_requested,
+        )
+        if job.cancel_requested:
+            st.info("Anularea este în curs.")
+    if job.error_message:
+        st.error(job.error_message)
+    parameters = json.loads(job.parameters)
+    current = {
+        "text": clean_text(st.session_state.get("text_input", "")),
+        "title": st.session_state.get("title_input", ""),
+        "language": st.session_state.get("language_name"),
+        "voice_name": st.session_state.get("voice_name"),
+        "rate_percent": st.session_state.get("rate_percent"),
+        "pitch_hz": st.session_state.get("pitch_hz"),
+    }
+    if any(
+        parameters["audio"].get(key) != value for key, value in current.items()
+    ) or parameters.get("output_format") != st.session_state.get("output_format"):
+        st.info(
+            "Formularul s-a schimbat. Rezultatul de mai jos aparține parametrilor salvați cu această lucrare."
+        )
+    if job.audio_generation_id:
+        audio = get_record(AudioGeneration, job.audio_generation_id)
+        if audio and audio.status == "completed":
+            render_snapshot(audio)
+            st.caption(
+                "Audio reutilizat din cache."
+                if audio.cache_hit
+                else f"Sinteză audio: {audio.generation_seconds or 0:.2f} secunde."
             )
-    except VideoServiceError as error:
-        st.session_state.generation_error = str(error)
-    except ValueError as error:
-        st.session_state.generation_error = str(error)
-    except Exception as error:
-        st.session_state.generation_error = f"Nu am putut genera audio-ul: {error}"
-    finally:
-        st.session_state.generation_request = None
-        st.session_state.is_generating = False
-        st.rerun()
+            render_media(audio, "audio", f"result_audio_{job.id}")
+    if job.video_generation_id:
+        video = get_record(VideoGeneration, job.video_generation_id)
+        if video and video.status == "completed":
+            st.caption(
+                f"MP4 · introducere {video.intro_seconds:g} s · decupare {CROP_LABELS[video.crop_position]}"
+            )
+            if video.subtitle_quality == "approximate":
+                st.warning("Subtitrările sunt aproximative și pot diferi de ritmul vorbirii.")
+            render_media(video, "video", f"result_video_{job.id}")
 
 
-def _render_generated_audio() -> None:
-    audio_record = st.session_state.audio_record
-    if not audio_record:
-        return
-
-    audio_path = Path(audio_record.file_path or "")
-    if not audio_path.exists():
-        st.warning("Audio-ul a fost salvat in istoric, dar fisierul MP3 nu mai exista pe disc.")
-        return
-
-    if audio_record.generation_seconds is None:
-        st.success("Audio generat.")
-    else:
-        st.success(f"Audio generat in {audio_record.generation_seconds:.2f} secunde.")
-    st.audio(str(audio_path), format="audio/mp3")
-
-    with audio_path.open("rb") as audio_file:
-        st.download_button(
-            label="Descarca MP3",
-            data=audio_file,
-            file_name=audio_record.file_name or audio_path.name,
-            mime="audio/mpeg",
-        )
+def _reset_recommendation() -> None:
+    st.session_state.pop("last_recommendation_text", None)
 
 
-def _render_generated_video() -> None:
-    video_record = st.session_state.video_record
-    if not video_record:
-        return
-
-    video_path = Path(video_record.file_path or "")
-    if not video_path.is_file():
-        st.warning("Videoclipul a fost salvat in istoric, dar fisierul MP4 nu mai exista pe disc.")
-        return
-
-    if video_record.generation_seconds is None:
-        st.success("Videoclip generat.")
-    else:
-        st.success(f"Videoclip generat in {video_record.generation_seconds:.2f} secunde.")
-    st.video(str(video_path))
-
-    with video_path.open("rb") as video_file:
-        st.download_button(
-            label="Descarca MP4",
-            data=video_file,
-            file_name=video_record.file_name or video_path.name,
-            mime="video/mp4",
-        )
+def _remember_upload() -> None:
+    st.session_state.background_upload = st.session_state.get("background_video")
+    st.session_state.pop("reuse_background_path", None)
 
 
 def render_generator_view() -> None:
     _init_generator_state()
-
-    disabled = st.session_state.is_generating
-    if disabled:
-        _render_generation_status()
-
-    with st.container(border=True):
-        left_column, right_column = st.columns([1.65, 1], gap="large")
-
-        with left_column:
-            st.text_area(
-                "Text",
-                key="text_input",
-                height=360,
-                placeholder="Scrie textul pe care vrei sa il transformi in audio...",
-                disabled=disabled,
-            )
-
-        with right_column:
-            st.radio(
-                "Format iesire",
-                options=["MP3", "MP4"],
-                key="output_format",
-                horizontal=True,
-                disabled=disabled,
-            )
-            _update_title_suggestion()
-            st.text_input(
-                "Titlu",
-                key="title_input",
-                max_chars=140,
-                placeholder="Titlu pentru istoric si numele fisierului...",
-                help="Este completat automat din text, dar il poti modifica inainte de generare.",
-                disabled=disabled,
-            )
-
-            if st.session_state.output_format == "MP4":
-                st.file_uploader(
-                    "Videoclip de fundal",
-                    type=["mp4", "m4v", "mov", "webm"],
-                    key="background_video",
-                    disabled=disabled,
-                    help="Fundalul este adaptat automat la format vertical 1080 x 1920. Audio-ul lui nu este folosit.",
-                )
-                if not is_ffmpeg_available():
-                    st.warning("MP4 necesita FFmpeg si FFprobe instalate in PATH.")
-
-            st.checkbox(
-                "Auto settings",
-                key="auto_settings_enabled",
-                disabled=disabled,
-            )
-            _apply_auto_settings()
-
-            if (
-                st.session_state.auto_settings_enabled
-                and st.session_state.get("text_input", "").strip()
-            ):
-                st.caption(f"Profil detectat: {st.session_state.detected_profile}")
-
-            settings_disabled = disabled or st.session_state.auto_settings_enabled
-
-            st.selectbox(
-                "Limba",
-                options=list(VOICE_OPTIONS.keys()),
-                key="language_name",
-                disabled=settings_disabled,
-            )
-
-            voice_options = VOICE_OPTIONS[st.session_state.language_name]
-            if st.session_state.voice_name not in voice_options:
-                st.session_state.voice_name = next(iter(voice_options))
-
-            st.selectbox(
-                "Voce",
-                options=list(voice_options.keys()),
-                key="voice_name",
-                disabled=settings_disabled,
-            )
-
-            st.slider(
-                "Viteza",
-                min_value=-40,
-                max_value=40,
-                step=5,
-                format="%d%%",
-                key="rate_percent",
-                disabled=settings_disabled,
-            )
-
-            st.slider(
-                "Ton",
-                min_value=-20,
-                max_value=20,
-                step=5,
-                format="%d Hz",
-                key="pitch_hz",
-                disabled=settings_disabled,
-            )
-
-            st.button(
-                "Genereaza audio",
-                type="primary",
-                disabled=disabled,
-                on_click=_start_generation,
-            )
-
-    if st.session_state.is_generating:
-        _process_generation()
-
+    normalize_form(st.session_state)
+    job = (
+        get_record(GenerationJob, st.session_state.active_job_id)
+        if st.session_state.active_job_id
+        else None
+    )
+    disabled = bool(job and job.status in ACTIVE_STATUSES)
+    st.caption(
+        "Sinteza nouă trimite textul serviciului Microsoft Edge prin edge-tts și necesită internet. Textul și fișierele rămân local până le ștergi din istoric."
+    )
+    st.text_area(
+        "Text", key="text_input", height=300, max_chars=MAX_TEXT_CHARACTERS, disabled=disabled
+    )
+    st.text_input("Titlu", key="title_input", max_chars=140, disabled=disabled)
+    st.radio(
+        "Format de ieșire", ["MP3", "MP4"], key="output_format", horizontal=True, disabled=disabled
+    )
+    st.checkbox(
+        "Recomandări automate la schimbarea textului",
+        key="auto_settings_enabled",
+        disabled=disabled,
+        on_change=_reset_recommendation,
+    )
+    if (
+        st.session_state.get("language_warning")
+        and st.session_state.auto_settings_enabled
+        and st.session_state.text_input
+    ):
+        st.warning(st.session_state.language_warning)
+    profile = st.session_state.get("detected_profile")
+    if profile:
+        st.caption(
+            f"Profil recomandat: {AUDIO_PROFILES[profile]['label']}. Poți modifica orice setare."
+        )
+    st.selectbox(
+        "Limba",
+        list(VOICE_OPTIONS),
+        key="language_name",
+        format_func=LANGUAGE_LABELS.get,
+        disabled=disabled,
+    )
+    st.selectbox(
+        "Voce",
+        list(VOICE_OPTIONS[st.session_state.language_name]),
+        key="voice_name",
+        disabled=disabled,
+    )
+    st.slider("Viteză", -40, 40, step=1, format="%d%%", key="rate_percent", disabled=disabled)
+    st.slider("Ton", -20, 20, step=1, format="%d Hz", key="pitch_hz", disabled=disabled)
+    st.checkbox(
+        "Ignoră cache-ul și sintetizează din nou",
+        key="force_synthesis",
+        disabled=disabled,
+        help="Util pentru a reface timpii cuvintelor unui MP3 vechi.",
+    )
+    seconds = estimate_seconds(st.session_state.text_input, st.session_state.rate_percent)
+    st.caption(
+        f"Durată estimată: {seconds:.0f} secunde. Limită: 10 minute / {MAX_TEXT_CHARACTERS} caractere."
+    )
+    ready = bool(st.session_state.text_input.strip()) and seconds <= 600
+    if st.session_state.get("generation_busy") and not disabled:
+        st.info(
+            "O altă lucrare este activă. Poți continua editarea; generarea va fi disponibilă după finalizare."
+        )
+        ready = False
+    if st.session_state.output_format == "MP4":
+        st.file_uploader(
+            "Videoclip de fundal",
+            type=["mp4", "m4v", "mov", "webm"],
+            key="background_video",
+            disabled=disabled,
+            help="Maximum 100 MB, 4K și 10 minute. Sunetul fundalului este eliminat.",
+            on_change=_remember_upload,
+        )
+        st.selectbox(
+            "Poziția decupării verticale",
+            list(CROP_LABELS),
+            format_func=CROP_LABELS.get,
+            key="crop_position",
+            disabled=disabled,
+        )
+        st.slider(
+            "Introducere cu titlu (secunde)",
+            0.0,
+            10.0,
+            step=0.5,
+            key="intro_seconds",
+            disabled=disabled,
+        )
+        st.caption(
+            "Cadru fix înaintea narațiunii; după introducere, fundalul și vocea pornesc de la început. 0 dezactivează introducerea."
+        )
+        st.checkbox(
+            "Accept subtitrări aproximative dacă lipsesc timpii cuvintelor",
+            key="allow_approximate",
+            disabled=disabled,
+        )
+        try:
+            validate_video_tools()
+        except Exception as error:
+            st.warning(str(error))
+            ready = False
+        background_ready = bool(
+            st.session_state.get("background_upload")
+            or st.session_state.get("background_video")
+            or st.session_state.get("reuse_background_path")
+        )
+        if not background_ready:
+            st.info("Încarcă un fundal înainte de generare.")
+        ready = ready and background_ready
+        if st.session_state.get("reuse_background_path"):
+            st.caption("Fundalul salvat în istoric este disponibil pentru reutilizare.")
+        if st.session_state.get("background_upload"):
+            st.caption(f"Fundal ales: {st.session_state.background_upload.name}")
+        if st.button("Previzualizează încadrarea", disabled=disabled or not ready):
+            _render_preview()
+    st.button(
+        f"Generează {st.session_state.output_format}",
+        type="primary",
+        disabled=disabled or not ready,
+        on_click=_start_generation,
+    )
     if st.session_state.generation_error:
         st.error(st.session_state.generation_error)
-
-    _render_generated_audio()
-    _render_generated_video()
+    st.session_state.generator_draft = {
+        key: st.session_state.get(key)
+        for key in (
+            "text_input",
+            "title_input",
+            "auto_settings_enabled",
+            "language_name",
+            "voice_name",
+            "rate_percent",
+            "pitch_hz",
+            "output_format",
+            "intro_seconds",
+            "crop_position",
+            "allow_approximate",
+            "force_synthesis",
+        )
+    }
+    st.fragment(run_every=1.0 if disabled else None)(_render_job)()

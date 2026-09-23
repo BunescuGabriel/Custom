@@ -1,9 +1,13 @@
 import streamlit as st
 
 from src.db.database import init_db
+from src.db.repositories import has_active_jobs
 from src.logging_config import configure_logging
+from src.services.job_service import recover_interrupted_jobs
 from src.ui.generator_view import render_generator_view
 from src.ui.history_view import render_history_view
+from src.ui.jobs_view import render_jobs_view
+from src.ui.labels import PAGES
 from src.ui.video_history_view import render_video_history_view
 
 
@@ -11,115 +15,16 @@ def _render_styles() -> None:
     st.markdown(
         """
         <style>
-            .block-container {
-                width: min(100% - 2rem, 1280px);
-                max-width: 1280px;
-                padding: clamp(1rem, 3vw, 2.5rem) 0 2rem;
-            }
-
-            div[data-testid="stTextArea"] textarea {
-                height: clamp(260px, 46vh, 430px);
-                min-height: 260px;
-                resize: vertical;
-                line-height: 1.55;
-            }
-
-            h1 {
-                font-size: clamp(2.1rem, 4vw, 3.4rem) !important;
-                line-height: 1.08 !important;
-            }
-
-            div[data-testid="stTabs"] button {
-                min-height: 42px;
-            }
-
-            div[data-testid="stExpander"] summary {
-                overflow-wrap: anywhere;
-            }
-
-            div[data-testid="stAudio"] {
-                width: 100%;
-            }
-
+            .block-container { max-width: 1100px; padding-top: 2rem; }
             .generation-panel {
-                display: flex;
-                align-items: center;
-                gap: 14px;
-                margin: 1rem 0;
-                padding: 14px 16px;
-                border: 1px solid rgba(255, 75, 75, 0.35);
-                border-radius: 8px;
-                background: rgba(255, 75, 75, 0.08);
+                padding: 1rem; border: 1px solid #999; border-radius: 8px;
+                margin: 1rem 0; overflow-wrap: anywhere;
             }
-
-            .generation-spinner {
-                width: 24px;
-                height: 24px;
-                border: 3px solid rgba(255, 255, 255, 0.2);
-                border-top-color: #ff4b4b;
-                border-radius: 50%;
-                animation: spin 0.9s linear infinite;
-                flex: 0 0 auto;
+            @media (prefers-reduced-motion: reduce) {
+                .generation-panel { animation: none; transition: none; }
             }
-
-            .generation-title {
-                font-weight: 700;
-                margin-bottom: 2px;
-            }
-
-            .generation-text {
-                opacity: 0.8;
-                font-size: 0.92rem;
-            }
-
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-
-            @media (max-width: 900px) {
-                .block-container {
-                    width: min(100% - 1rem, 760px);
-                    padding-top: 1rem;
-                }
-
-                div[data-testid="stTextArea"] textarea {
-                    height: clamp(240px, 42vh, 340px);
-                    min-height: 220px;
-                }
-
-                div[data-testid="stHorizontalBlock"] {
-                    flex-wrap: wrap;
-                    gap: 0.75rem;
-                }
-
-                div[data-testid="stHorizontalBlock"] > div {
-                    min-width: 100% !important;
-                    flex: 1 1 100% !important;
-                }
-
-                div[data-testid="stButton"] button,
-                div[data-testid="stDownloadButton"] button {
-                    width: 100%;
-                }
-
-                .generation-panel {
-                    align-items: flex-start;
-                }
-            }
-
             @media (max-width: 480px) {
-                .block-container {
-                    width: calc(100% - 0.75rem);
-                    padding-bottom: 1rem;
-                }
-
-                div[data-testid="stTextArea"] textarea {
-                    height: 260px;
-                }
-
-                .generation-panel {
-                    padding: 12px;
-                }
+                .block-container { padding-left: 1rem; padding-right: 1rem; }
             }
         </style>
         """,
@@ -128,23 +33,32 @@ def _render_styles() -> None:
 
 
 def run_app() -> None:
-    st.set_page_config(
-        page_title="Text to Audio",
-        layout="wide",
-    )
-
+    st.set_page_config(page_title="Text în audio și video", layout="wide")
     configure_logging()
-    init_db()
+    try:
+        init_db()
+        recover_interrupted_jobs()
+        st.session_state.generation_busy = has_active_jobs()
+    except Exception:
+        st.error(
+            "Stocarea nu poate fi inițializată. Verifică spațiul liber și jurnalul aplicației."
+        )
+        st.stop()
     _render_styles()
-
-    st.title("Text to Audio")
-
-    generator_tab, history_tab, video_history_tab = st.tabs(
-        ["Generator", "Istoric audio", "Istoric video"]
+    st.title("Text în audio și video")
+    if pending := st.session_state.pop("pending_navigation", None):
+        st.session_state["navigation"] = pending
+    page = st.radio("Navigare", PAGES, key="navigation", horizontal=True)
+    views = dict(
+        zip(
+            PAGES,
+            (
+                render_generator_view,
+                render_history_view,
+                render_video_history_view,
+                render_jobs_view,
+            ),
+            strict=True,
+        )
     )
-    with generator_tab:
-        render_generator_view()
-    with history_tab:
-        render_history_view()
-    with video_history_tab:
-        render_video_history_view()
+    views[page]()
