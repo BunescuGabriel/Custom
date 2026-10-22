@@ -1,0 +1,20 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      API_HOST: 0.0.0.0
+      APP_MEDIA_DIR: /app/media
+    volumes:
+      - ./media:/app/media
+    ports:
+      - "8000:8000"
+  frontend:
+    build:
+      context: ./src/frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://api:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
