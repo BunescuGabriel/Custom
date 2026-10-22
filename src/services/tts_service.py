@@ -41,7 +41,7 @@ async def _save_audio(
 ) -> None:
     metadata_path = output_path.with_suffix(".jsonl")
     for attempt in range(1, TTS_MAX_ATTEMPTS + 1):
-        control.report(f"Sinteză vocală: încercarea {attempt}/{TTS_MAX_ATTEMPTS}")
+        control.report(f"Voice synthesis: attempt {attempt}/{TTS_MAX_ATTEMPTS}")
         communicate = edge_tts.Communicate(
             text=text,
             voice=voice,
@@ -63,7 +63,7 @@ async def _save_audio(
                 type(error).__name__,
                 delay,
             )
-            control.report(f"Serviciul de voce reîncearcă în {delay:.1f} secunde")
+            control.report(f"Retrying voice service in {delay:.1f} seconds")
             await asyncio.sleep(delay)
 
 
@@ -95,7 +95,7 @@ def text_to_audio(
 ) -> Path:
     cleaned_text = clean_text(text)
     if not cleaned_text:
-        raise ValueError("Textul nu poate fi gol.")
+        raise ValueError("Text cannot be empty.")
     output_path = _make_output_path(file_stem)
     temporary_path = output_path.with_name(output_path.stem + ".part.mp3")
     control = control or OperationControl()

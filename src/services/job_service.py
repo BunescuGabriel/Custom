@@ -39,8 +39,8 @@ def _recover_interrupted() -> None:
         session.query(GenerationJob).filter(GenerationJob.status.in_(ACTIVE_STATUSES)).update(
             {
                 "status": "interrupted",
-                "stage": "Procesarea a fost întreruptă",
-                "error_message": "Aplicația s-a oprit înainte de finalizare. Poți relua din istoric.",
+                "stage": "Processing interrupted",
+                "error_message": "The application stopped before completion. You can retry from history.",
                 "updated_at": datetime.now(UTC),
             },
             synchronize_session=False,
@@ -49,7 +49,7 @@ def _recover_interrupted() -> None:
             session.query(model).filter(model.status == "pending").update(
                 {
                     "status": "interrupted",
-                    "error_message": "Procesarea a fost întreruptă. Poți relua generarea.",
+                    "error_message": "Processing was interrupted. You can retry the generation.",
                 },
                 synchronize_session=False,
             )
@@ -84,7 +84,7 @@ def _execute_job(job_id: str, parameters: dict, lock: FileLock) -> None:
         record=lambda kind, record_id: update(**{f"{kind}_generation_id": record_id}),
     )
     try:
-        update(status="running", stage="Verificare date")
+        update(status="running", stage="Checking input")
         control.check()
         if parameters.get("kind") == "bilingual_vocabulary":
             output_path = generate_bilingual_vocabulary_audio(parameters["vocabulary"], control)
@@ -93,7 +93,7 @@ def _execute_job(job_id: str, parameters: dict, lock: FileLock) -> None:
                 "file_name": output_path.name,
             }
             update(parameters=json.dumps(parameters, ensure_ascii=False))
-            update(status="completed", stage="Finalizat")
+            update(status="completed", stage="Completed")
             return
         if parameters.get("background_path"):
             validate_video_tools()
@@ -101,7 +101,7 @@ def _execute_job(job_id: str, parameters: dict, lock: FileLock) -> None:
         if parameters.get("audio_generation_id"):
             audio = get_record(AudioGeneration, parameters["audio_generation_id"])
             if audio is None or audio.status != "completed":
-                raise ValueError("Audio-ul ales nu mai este disponibil.")
+                raise ValueError("The selected audio is no longer available.")
             audio_duration(resolve_media_path(audio.file_path))
             update(audio_generation_id=audio.id)
         else:
@@ -115,19 +115,20 @@ def _execute_job(job_id: str, parameters: dict, lock: FileLock) -> None:
             video = generate_video_record(
                 audio_record=audio,
                 background_path=resolve_media_path(parameters["background_path"]),
-                intro_seconds=parameters.get("intro_seconds", 3.0),
+                intro_seconds=parameters.get("intro_seconds", 0.5),
                 crop_position=parameters.get("crop_position", "center"),
                 allow_approximate=parameters.get("allow_approximate", False),
                 control=control,
+                render_settings=parameters.get("render_settings"),
             )
             update(video_generation_id=video.id)
-        update(status="completed", stage="Finalizat")
+        update(status="completed", stage="Completed")
     except Exception as error:
         message = describe_error(error)
         try:
             update(
                 status="cancelled" if isinstance(error, GenerationCancelled) else "failed",
-                stage="Oprit",
+                stage="Stopped",
                 error_message=message,
             )
         except Exception:
@@ -147,7 +148,7 @@ def submit_job(parameters: dict) -> str:
         lock.acquire()
     except Timeout as error:
         raise ValueError(
-            "O altă generare este activă. Așteaptă finalizarea sau anuleaz-o din lista de lucrări."
+            "Another generation is active. Wait for it to finish or cancel it before starting a new one."
         ) from error
     try:
         _recover_interrupted()
@@ -156,7 +157,7 @@ def submit_job(parameters: dict) -> str:
             id=job_id,
             parameters=json.dumps(snapshot, ensure_ascii=False),
             status="queued",
-            stage="În așteptare",
+            stage="Queued",
             cancel_requested=False,
         )
         worker = Thread(

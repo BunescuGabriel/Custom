@@ -1,0 +1,108 @@
+{
+  "tts_timeout_seconds": 180,
+  "tts_max_attempts": 5,
+  "tts_retry_delay_seconds": 1,
+  "video_width": 1080,
+  "video_height": 1920,
+  "video_fps": 30,
+  "video_title_duration_seconds": 0.5,
+  "video_title_preview_seconds": 1,
+  "video_title_font_size": 62,
+  "video_title_min_font_size": 20,
+  "video_title_max_lines": 4,
+  "video_title_max_text_width": 760,
+  "video_render_timeout_seconds": 900,
+  "max_text_characters": 12000,
+  "max_audio_seconds": 600,
+  "max_upload_bytes": 104857600,
+  "max_video_pixels": 8294400,
+  "max_background_seconds": 600,
+  "audio_profiles": {
+    "story": {
+      "label": "Story",
+      "rate_percent": -5,
+      "pitch_hz": 0,
+      "voice_by_language": {
+        "Romana": "Emil",
+        "Rusa": "Dmitry",
+        "Engleza": "Guy",
+        "Franceza": "Henri",
+        "Germana": "Conrad",
+        "Italiana": "Diego",
+        "Spaniola": "Alvaro"
+      }
+    },
+    "dialogue": {
+      "label": "Dialogue",
+      "rate_percent": -5,
+      "pitch_hz": 0,
+      "voice_by_language": {
+        "Romana": "Alina",
+        "Rusa": "Svetlana",
+        "Engleza": "Jenny",
+        "Franceza": "Denise",
+        "Germana": "Katja",
+        "Italiana": "Elsa",
+        "Spaniola": "Elvira"
+      }
+    },
+    "informative": {
+      "label": "Informative",
+      "rate_percent": 0,
+      "pitch_hz": 0,
+      "voice_by_language": {
+        "Romana": "Alina",
+        "Rusa": "Svetlana",
+        "Engleza": "Jenny",
+        "Franceza": "Denise",
+        "Germana": "Katja",
+        "Italiana": "Elsa",
+        "Spaniola": "Elvira"
+      }
+    },
+    "short_message": {
+      "label": "Short message",
+      "rate_percent": 2,
+      "pitch_hz": 0,
+      "voice_by_language": {
+        "Romana": "Alina",
+        "Rusa": "Svetlana",
+        "Engleza": "Jenny",
+        "Franceza": "Denise",
+        "Germana": "Katja",
+        "Italiana": "Elsa",
+        "Spaniola": "Elvira"
+      }
+    }
+  },
+  "voice_options": {
+    "Romana": {
+      "Alina": "ro-RO-AlinaNeural",
+      "Emil": "ro-RO-EmilNeural"
+    },
+    "Rusa": {
+      "Svetlana": "ru-RU-SvetlanaNeural",
+      "Dmitry": "ru-RU-DmitryNeural"
+    },
+    "Engleza": {
+      "Jenny": "en-US-JennyNeural",
+      "Guy": "en-US-GuyNeural"
+    },
+    "Franceza": {
+      "Denise": "fr-FR-DeniseNeural",
+      "Henri": "fr-FR-HenriNeural"
+    },
+    "Germana": {
+      "Katja": "de-DE-KatjaNeural",
+      "Conrad": "de-DE-ConradNeural"
+    },
+    "Italiana": {
+      "Elsa": "it-IT-ElsaNeural",
+      "Diego": "it-IT-DiegoNeural"
+    },
+    "Spaniola": {
+      "Elvira": "es-ES-ElviraNeural",
+      "Alvaro": "es-ES-AlvaroNeural"
+    }
+  }
+}

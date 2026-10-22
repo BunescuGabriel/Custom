@@ -41,18 +41,18 @@ def _detector():
 @lru_cache(maxsize=64)
 def _detect_language(text: str) -> tuple[str | None, str | None]:
     if sum(character.isalpha() for character in text) < 5:
-        return None, "Text prea scurt pentru detectare sigură. Alege limba manual."
+        return None, "Text is too short for reliable detection. Choose a language manually."
     detector = _detector()
     language = detector.detect_language_of(text)
     if language not in LANGUAGES:
-        return None, "Limba este incertă sau nesuportată. Alege limba manual."
+        return None, "The language is uncertain or unsupported. Choose a language manually."
     sentences = [sentence for sentence in re.split(r"[.!?\n]+", text) if len(sentence.split()) >= 3]
     significant = {detector.detect_language_of(sentence) for sentence in sentences}
     significant.discard(None)
     letters = [character for character in text if character.isalpha()]
     cyrillic_ratio = sum("\u0400" <= character <= "\u04ff" for character in letters) / len(letters)
     if len(significant) > 1 or 0.2 < cyrillic_ratio < 0.8:
-        return None, "Textul pare să combine mai multe limbi. Alege limba manual."
+        return None, "The text appears to contain multiple languages. Choose a language manually."
     return LANGUAGES[language], None
 
 

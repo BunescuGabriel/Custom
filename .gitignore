@@ -46,6 +46,12 @@ logs/
 *.mov
 *.webm
 
+# React / Vite
+src/frontend/node_modules/
+src/frontend/dist/
+*.tsbuildinfo
+
 # OS files
 .DS_Store
 Thumbs.db
+start-react-fastapi.cmd

@@ -4,7 +4,7 @@ from hashlib import sha256
 from sqlalchemy.orm import selectinload
 
 from src.db.database import get_session
-from src.db.models import AudioGeneration, GenerationJob, VideoGeneration
+from src.db.models import AppSettings, AudioGeneration, GenerationJob, VideoGeneration
 
 
 def _make_content_hash(text: str) -> str:
@@ -113,7 +113,7 @@ def update_record(model, record_id, **values):
     with get_session() as session:
         row = session.get(model, record_id)
         if row is None:
-            raise ValueError("Înregistrarea nu mai există.")
+            raise ValueError("The record no longer exists.")
         for key, value in values.items():
             setattr(row, key, value)
         session.flush()
@@ -131,18 +131,6 @@ def create_job(**values) -> GenerationJob:
         return row
 
 
-def list_jobs(limit: int = 20) -> Sequence[GenerationJob]:
-    with get_session() as session:
-        rows = (
-            session.query(GenerationJob)
-            .order_by(GenerationJob.created_at.desc())
-            .limit(limit)
-            .all()
-        )
-        session.expunge_all()
-        return rows
-
-
 def has_active_jobs() -> bool:
     with get_session() as session:
         return (
@@ -151,3 +139,26 @@ def has_active_jobs() -> bool:
             .first()
             is not None
         )
+
+
+def get_app_settings() -> AppSettings | None:
+    with get_session() as session:
+        row = session.get(AppSettings, 1)
+        if row:
+            session.expunge(row)
+        return row
+
+
+def save_app_settings(**values: object) -> AppSettings:
+    with get_session() as session:
+        row = session.get(AppSettings, 1)
+        if row is None:
+            row = AppSettings(id=1, **values)
+            session.add(row)
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+        session.flush()
+        session.refresh(row)
+        session.expunge(row)
+        return row

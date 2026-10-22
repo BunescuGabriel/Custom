@@ -72,7 +72,7 @@ def test_shared_audio_deleted_only_after_last_reference(valid_mp3, audio_paramet
 def test_delete_linked_audio_is_blocked(valid_mp3, audio_parameters):
     audio = create_audio_generation(**audio_parameters, file_path=media_reference(valid_mp3))
     create_video_generation(audio_generation_id=audio.id, background_path="backgrounds/a.mp4")
-    with pytest.raises(ValueError, match="mai întâi"):
+    with pytest.raises(ValueError, match="Delete videos"):
         delete_generation("audio", audio.id)
     assert valid_mp3.exists()
 

@@ -66,7 +66,7 @@ class VideoGeneration(Base):
     generation_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
     subtitle_quality: Mapped[str | None] = mapped_column(String(32), nullable=True)
     intro_seconds: Mapped[float] = mapped_column(
-        Float, nullable=False, default=3.0, server_default="3"
+        Float, nullable=False, default=0.5, server_default="0.5"
     )
     crop_position: Mapped[str] = mapped_column(
         String(16), nullable=False, default="center", server_default="center"
@@ -98,3 +98,18 @@ class GenerationJob(Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    video_width: Mapped[int] = mapped_column(Integer, nullable=False, default=1080)
+    video_height: Mapped[int] = mapped_column(Integer, nullable=False, default=1920)
+    video_fps: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    title_duration_seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.5)
+    default_rate_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    default_pitch_hz: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
+    )

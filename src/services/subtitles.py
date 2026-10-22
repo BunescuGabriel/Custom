@@ -100,23 +100,29 @@ def _escape_ass_text(text: str) -> str:
 
 
 def write_subtitles(
-    audio_record, audio_path: Path, duration: float, intro: float, allow_approximate: bool
+    audio_record,
+    audio_path: Path,
+    duration: float,
+    intro: float,
+    allow_approximate: bool,
+    video_width: int = VIDEO_WIDTH,
+    video_height: int = VIDEO_HEIGHT,
 ) -> tuple[Path, str]:
     cues = load_word_cues(audio_path.with_suffix(".jsonl"), audio_record.text, duration)
     quality = "provider"
     if not cues:
         if not allow_approximate:
             raise ValueError(
-                "Lipsesc timpii compleți ai cuvintelor. Activează explicit subtitrările aproximative sau generează din nou audio-ul."
+                "Complete word timings are missing. Explicitly allow approximate captions or regenerate the audio."
             )
         quality = "approximate"
         cues = fallback_cues(audio_record.text, duration)
     if not cues:
-        raise ValueError("Nu există text pentru subtitrări.")
+        raise ValueError("There is no text for captions.")
     header = f"""[Script Info]
 ScriptType: v4.00+
-PlayResX: {VIDEO_WIDTH}
-PlayResY: {VIDEO_HEIGHT}
+PlayResX: {video_width}
+PlayResY: {video_height}
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]

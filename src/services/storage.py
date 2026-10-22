@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 def resolve_media_path(value: str | Path | None) -> Path:
     if not value:
-        raise ValueError("Fișierul nu este disponibil.")
+        raise ValueError("The file is unavailable.")
     normalized = str(value).replace("\\", "/")
     path = Path(normalized)
     if path.is_absolute() or PureWindowsPath(normalized).is_absolute():
@@ -18,11 +18,11 @@ def resolve_media_path(value: str | Path | None) -> Path:
         except ValueError:
             parts = normalized.split("/")
             if "media" not in parts:
-                raise ValueError("Fișierul este în afara stocării aplicației.") from None
+                raise ValueError("The file is outside application storage.") from None
             path = Path(*parts[len(parts) - parts[::-1].index("media") :])
     resolved = (MEDIA_DIR / path).resolve()
     if not resolved.is_relative_to(MEDIA_DIR) or resolved == MEDIA_DIR:
-        raise ValueError("Calea fișierului nu este validă.")
+        raise ValueError("The file path is invalid.")
     return resolved
 
 

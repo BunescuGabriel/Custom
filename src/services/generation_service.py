@@ -48,7 +48,7 @@ def generate_audio_record(
     cache_hit = False
     try:
         control.record("audio", record.id)
-        control.report("Verificare cache audio")
+        control.report("Checking audio cache")
         candidates = (
             []
             if force_synthesis
