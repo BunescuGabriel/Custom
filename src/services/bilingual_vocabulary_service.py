@@ -33,16 +33,16 @@ def parse_vocabulary_pairs(text: str) -> list[VocabularyPair]:
             continue
         if line.count("|") != 1:
             raise BilingualVocabularyError(
-                f"Linia {line_number} trebuie să conțină exact un separator |."
+                f"Line {line_number} must contain exactly one | separator."
             )
         english, romanian = (part.strip() for part in line.split("|"))
         if not english or not romanian:
             raise BilingualVocabularyError(
-                f"Linia {line_number} trebuie să aibă un termen englez și o traducere română."
+                f"Line {line_number} must have an English term and a Romanian translation."
             )
         pairs.append(VocabularyPair(english=english, romanian=romanian))
     if not pairs:
-        raise BilingualVocabularyError("Adaugă cel puțin o pereche vocabular.")
+        raise BilingualVocabularyError("Add at least one vocabulary pair.")
     return pairs
 
 
@@ -50,25 +50,25 @@ def validate_bilingual_request(request: dict) -> list[VocabularyPair]:
     pairs = parse_vocabulary_pairs(request.get("text", ""))
     title = request.get("title", "").strip()
     if not title or len(title) > 140:
-        raise BilingualVocabularyError("Titlul trebuie să conțină între 1 și 140 de caractere.")
+        raise BilingualVocabularyError("The title must contain 1 to 140 characters.")
     if request.get("english_voice") not in VOICE_OPTIONS["Engleza"].values():
-        raise BilingualVocabularyError("Vocea engleză nu este validă.")
+        raise BilingualVocabularyError("The English voice is invalid.")
     if request.get("romanian_voice") not in VOICE_OPTIONS["Romana"].values():
-        raise BilingualVocabularyError("Vocea română nu este validă.")
+        raise BilingualVocabularyError("The Romanian voice is invalid.")
     for key in ("rate_percent", "english_pause_ms", "pair_pause_ms"):
         if not isinstance(request.get(key), int):
-            raise BilingualVocabularyError("Setările vocabularului nu sunt valide.")
+            raise BilingualVocabularyError("The vocabulary settings are invalid.")
     if not -40 <= request["rate_percent"] <= 40:
-        raise BilingualVocabularyError("Viteza trebuie să fie între -40% și +40%.")
+        raise BilingualVocabularyError("Speed must be between -40% and +40%.")
     if not 0 <= request["english_pause_ms"] <= 3000 or not 0 <= request["pair_pause_ms"] <= 5000:
-        raise BilingualVocabularyError("Pauzele sunt în afara intervalului permis.")
+        raise BilingualVocabularyError("Pauses are outside the allowed range.")
     return pairs
 
 
 def _ffmpeg() -> str:
     executable = shutil.which("ffmpeg")
     if executable is None:
-        raise RuntimeError("Vocabularul bilingv necesită FFmpeg în PATH.")
+        raise RuntimeError("Bilingual vocabulary requires FFmpeg in PATH.")
     return executable
 
 
@@ -98,7 +98,7 @@ def _create_silence(path: Path, milliseconds: int, control: OperationControl) ->
         control,
     )
     if result.returncode or not path.is_file():
-        raise RuntimeError("Nu pot crea pauzele dintre termeni.")
+        raise RuntimeError("Cannot create pauses between terms.")
 
 
 def _concat_audio(paths: list[Path], output_path: Path, control: OperationControl) -> None:
@@ -132,7 +132,7 @@ def _concat_audio(paths: list[Path], output_path: Path, control: OperationContro
             control,
         )
     if result.returncode or not output_path.is_file():
-        raise RuntimeError("Nu pot uni fragmentele audio bilingve.")
+        raise RuntimeError("Cannot concatenate bilingual audio segments.")
 
 
 def generate_bilingual_vocabulary_audio(
@@ -176,7 +176,7 @@ def generate_bilingual_vocabulary_audio(
         control.report("Unire fragmente audio")
         _concat_audio(fragments, temporary_output, control)
         if audio_duration(temporary_output) > MAX_AUDIO_SECONDS:
-            raise BilingualVocabularyError("Audio-ul rezultat depășește limita de 10 minute.")
+            raise BilingualVocabularyError("The resulting audio exceeds the 10-minute limit.")
         temporary_output.replace(output_path)
         return output_path
     except BaseException:

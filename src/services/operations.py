@@ -23,7 +23,7 @@ class OperationControl:
 
     def check(self) -> None:
         if self.cancelled():
-            raise GenerationCancelled("Generarea a fost anulată.")
+            raise GenerationCancelled("Generation was cancelled.")
 
     def report(self, stage: str) -> None:
         self.check()
@@ -51,7 +51,7 @@ def run_process(
                 control.check()
                 remaining = timeout - (monotonic() - started)
                 if remaining <= 0:
-                    raise TimeoutError("Procesarea media a depășit timpul disponibil.")
+                    raise TimeoutError("Media processing exceeded the available time.")
                 try:
                     stdout, stderr = process.communicate(timeout=min(0.25, remaining))
                     return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
@@ -69,17 +69,17 @@ def describe_error(error: Exception) -> str:
         "operation_failed error_id=%s", error_id, exc_info=(type(error), error, error.__traceback__)
     )
     if isinstance(error, GenerationCancelled):
-        message = "Generarea a fost anulată. Rezultatele deja finalizate rămân în istoric."
+        message = "Generation was cancelled. Completed results remain in history."
     elif isinstance(error, (TimeoutError, subprocess.TimeoutExpired)):
-        message = "Timpul de procesare a expirat. Încearcă un text sau un videoclip mai scurt."
+        message = "Processing timed out. Try shorter text or a shorter video."
     elif isinstance(error, ClientError):
-        message = "Serviciul de voce nu este disponibil. Verifică internetul și încearcă din nou."
+        message = "The voice service is unavailable. Check your internet connection and try again."
     elif isinstance(error, SQLAlchemyError):
-        message = "Istoricul nu poate fi salvat. Verifică spațiul liber și accesul la baza de date."
+        message = "History could not be saved. Check free space and database access."
     elif isinstance(error, OSError):
-        message = "Fișierul nu poate fi citit sau salvat. Verifică spațiul liber și permisiunile."
+        message = "The file could not be read or saved. Check free space and permissions."
     elif isinstance(error, (ValueError, RuntimeError)):
-        message = str(error) or "Procesarea a eșuat. Încearcă din nou."
+        message = str(error) or "Processing failed. Try again."
     else:
-        message = "Procesarea a eșuat. Consultă jurnalul folosind identificatorul erorii."
+        message = "Processing failed. Check the log using the error identifier."
     return f"{message} Cod: {error_id}"

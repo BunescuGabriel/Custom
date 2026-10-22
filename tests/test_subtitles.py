@@ -32,7 +32,7 @@ def test_incomplete_metadata_rejected(tmp_path):
 
 def test_fallback_requires_opt_in_and_offsets_all_cues(valid_mp3):
     audio = SimpleNamespace(text="hello world")
-    with pytest.raises(ValueError, match="aproximative"):
+    with pytest.raises(ValueError, match="approximate captions"):
         write_subtitles(audio, valid_mp3, 2, 3, False)
     path, quality = write_subtitles(audio, valid_mp3, 2, 3, True)
     assert quality == "approximate"

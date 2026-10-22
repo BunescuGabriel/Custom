@@ -27,7 +27,7 @@ def test_job_survives_page_and_can_be_cancelled(isolated_store, audio_parameters
     job = get_record(GenerationJob, job_id)
     assert job.status == "running"
     assert json.loads(job.parameters) == parameters
-    with pytest.raises(ValueError, match="altă generare"):
+    with pytest.raises(ValueError, match="Another generation"):
         submit_job(parameters)
     recover_interrupted_jobs()
     assert get_record(GenerationJob, job_id).status == "running"

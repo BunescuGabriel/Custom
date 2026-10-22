@@ -48,14 +48,14 @@ def estimate_seconds(text: str, rate_percent: int = 0) -> float:
 
 def validate_request(request: dict) -> None:
     if not request["text"].strip():
-        raise ValueError("Textul nu poate fi gol.")
+        raise ValueError("Text cannot be empty.")
     if len(request["text"]) > MAX_TEXT_CHARACTERS:
-        raise ValueError(f"Textul poate avea cel mult {MAX_TEXT_CHARACTERS} de caractere.")
+        raise ValueError(f"Text can contain at most {MAX_TEXT_CHARACTERS} characters.")
     if len(request["title"]) > 140:
-        raise ValueError("Titlul poate avea cel mult 140 de caractere.")
+        raise ValueError("Title can contain at most 140 characters.")
     if not -40 <= request["rate_percent"] <= 40 or not -20 <= request["pitch_hz"] <= 20:
-        raise ValueError("Viteza sau tonul sunt în afara intervalului permis.")
+        raise ValueError("Speed or pitch is outside the allowed range.")
     if VOICE_OPTIONS.get(request["language"], {}).get(request["voice_name"]) != request["voice_id"]:
-        raise ValueError("Vocea nu corespunde limbii selectate.")
+        raise ValueError("The voice does not match the selected language.")
     if estimate_seconds(request["text"], request["rate_percent"]) > MAX_AUDIO_SECONDS:
-        raise ValueError("Durata estimată depășește 10 minute. Împarte textul în fragmente.")
+        raise ValueError("The estimated duration exceeds 10 minutes. Split the text into parts.")

@@ -47,7 +47,7 @@ def _get_ffmpeg_executable(name: str) -> str:
     executable = shutil.which(name)
     if executable is None:
         raise VideoServiceError(
-            "MP4 necesită FFmpeg și FFprobe în PATH. Instalează-le și repornește aplicația."
+            "MP4 requires FFmpeg and FFprobe in PATH. Install them and restart the application."
         )
     return executable
 
@@ -62,7 +62,7 @@ def _check_capabilities(ffmpeg: str, modified: float) -> None:
         names = {parts[1] for line in result.stdout.splitlines() if len(parts := line.split()) > 1}
         if result.returncode or not set(required) <= names:
             raise VideoServiceError(
-                "FFmpeg trebuie să includă libass, libx264 și AAC. Instalează o versiune completă."
+                "FFmpeg must include libass, libx264, and AAC. Install a complete build."
             )
 
 
@@ -75,7 +75,7 @@ def validate_video_tools() -> None:
 
 def _validate_background(background_path: Path, control: OperationControl | None = None) -> dict:
     if not background_path.is_file() or not 0 < background_path.stat().st_size <= MAX_UPLOAD_BYTES:
-        raise VideoServiceError("Fundalul lipsește, este gol sau depășește 100 MB.")
+        raise VideoServiceError("The background is missing, empty, or exceeds 100 MB.")
     result = run_process(
         [
             _get_ffmpeg_executable("ffprobe"),
@@ -112,20 +112,26 @@ def _validate_background(background_path: Path, control: OperationControl | None
     except (KeyError, IndexError, TypeError, ValueError) as error:
         logger.warning("background_validation_failed details=%s", result.stderr)
         raise VideoServiceError(
-            "Fundal incompatibil. Folosește un video de maximum 4K, 100 MB și 10 minute."
+            "Incompatible background. Use a video up to 4K, 100 MB, and 10 minutes."
         ) from error
     return {"width": width, "height": height, "duration": duration}
 
 
-def _crop_filter(position: str) -> str:
+def _crop_filter(
+    position: str, video_width: int = VIDEO_WIDTH, video_height: int = VIDEO_HEIGHT
+) -> str:
     if position not in {"left", "center", "right"}:
-        raise ValueError("Poziția decupării nu este validă.")
+        raise ValueError("The crop position is invalid.")
     horizontal = {"left": "0", "center": "(iw-ow)/2", "right": "iw-ow"}[position]
-    return f"scale={VIDEO_WIDTH}:{VIDEO_HEIGHT}:force_original_aspect_ratio=increase,crop={VIDEO_WIDTH}:{VIDEO_HEIGHT}:{horizontal}:(ih-oh)/2,setsar=1"
+    return f"scale={video_width}:{video_height}:force_original_aspect_ratio=increase,crop={video_width}:{video_height}:{horizontal}:(ih-oh)/2,setsar=1"
 
 
 def extract_preview(
-    background_path: Path, crop_position: str = "center", control: OperationControl | None = None
+    background_path: Path,
+    crop_position: str = "center",
+    control: OperationControl | None = None,
+    video_width: int = VIDEO_WIDTH,
+    video_height: int = VIDEO_HEIGHT,
 ) -> Path:
     info = _validate_background(background_path, control)
     path = unique_path(VIDEO_DIR / "previews", "frame", ".png")
@@ -141,7 +147,7 @@ def extract_preview(
                 "-i",
                 str(background_path),
                 "-vf",
-                _crop_filter(crop_position),
+                _crop_filter(crop_position, video_width, video_height),
                 "-frames:v",
                 "1",
                 "-threads",
@@ -153,7 +159,7 @@ def extract_preview(
         )
         if result.returncode or not path.is_file():
             logger.error("frame_extraction_failed details=%s", result.stderr)
-            raise VideoServiceError("Nu pot decoda fundalul. Încearcă un alt videoclip.")
+            raise VideoServiceError("The background cannot be decoded. Try another video.")
         return path
     except BaseException:
         safe_unlink(path)
@@ -173,6 +179,9 @@ def _render_video(
     intro_seconds: float = VIDEO_TITLE_DURATION_SECONDS,
     crop_position: str = "center",
     control: OperationControl | None = None,
+    video_width: int = VIDEO_WIDTH,
+    video_height: int = VIDEO_HEIGHT,
+    video_fps: int = VIDEO_FPS,
 ) -> Path:
     ffmpeg = _get_ffmpeg_executable("ffmpeg")
     output = _make_output_path(audio_path.stem)
@@ -184,9 +193,7 @@ def _render_video(
         shutil.copyfile(subtitle_path, work_dir / "subtitles.ass")
         font_path = Path(resolve_font())
         shutil.copyfile(font_path, work_dir / font_path.name)
-        background = (
-            f"[0:v]{_crop_filter(crop_position)},fps={VIDEO_FPS},setpts=PTS-STARTPTS[background];"
-        )
+        background = f"[0:v]{_crop_filter(crop_position, video_width, video_height)},fps={video_fps},setpts=PTS-STARTPTS[background];"
         command = [
             ffmpeg,
             "-hide_banner",
@@ -203,18 +210,20 @@ def _render_video(
             str(audio_path),
         ]
         if intro_seconds > 0:
-            frame = extract_preview(background_path, crop_position, control)
+            frame = extract_preview(
+                background_path, crop_position, control, video_width, video_height
+            )
             command += [
                 "-loop",
                 "1",
                 "-framerate",
-                str(VIDEO_FPS),
+                str(video_fps),
                 "-i",
                 str(title_overlay_path),
                 "-loop",
                 "1",
                 "-framerate",
-                str(VIDEO_FPS),
+                str(video_fps),
                 "-i",
                 str(frame),
             ]
@@ -262,7 +271,7 @@ def _render_video(
         if result.returncode or not temporary.is_file() or temporary.stat().st_size == 0:
             logger.error("video_render_failed details=%s", result.stderr)
             raise VideoServiceError(
-                "FFmpeg nu a putut crea videoclipul. Încearcă alt fundal; detaliile sunt în jurnal."
+                "FFmpeg could not create the video. Try another background; details are in the log."
             )
         if control:
             control.check()
@@ -286,15 +295,20 @@ def generate_video_record(
     crop_position: str = "center",
     allow_approximate: bool = False,
     control: OperationControl | None = None,
+    render_settings: dict | None = None,
 ) -> VideoGeneration:
     control = control or OperationControl()
     validate_video_tools()
     if not 0 <= intro_seconds <= 10:
-        raise ValueError("Introducerea trebuie să aibă între 0 și 10 secunde.")
-    _crop_filter(crop_position)
+        raise ValueError("The introduction must be between 0 and 10 seconds.")
+    render_settings = render_settings or {}
+    video_width = int(render_settings.get("video_width", VIDEO_WIDTH))
+    video_height = int(render_settings.get("video_height", VIDEO_HEIGHT))
+    video_fps = int(render_settings.get("video_fps", VIDEO_FPS))
+    _crop_filter(crop_position, video_width, video_height)
     audio_path = resolve_media_path(audio_record.file_path)
     if audio_record.status != "completed":
-        raise VideoServiceError("Audio-ul necesar pentru videoclip nu este disponibil.")
+        raise VideoServiceError("The audio required for this video is unavailable.")
     duration = audio_duration(audio_path)
     _validate_background(background_path, control)
     record = create_video_generation(
@@ -308,11 +322,17 @@ def generate_video_record(
     subtitle_path = title_path = output_path = None
     try:
         control.record("video", record.id)
-        control.report("Pregătire subtitrări")
+        control.report("Preparing captions")
         subtitle_path, quality = write_subtitles(
-            audio_record, audio_path, duration, intro_seconds, allow_approximate
+            audio_record,
+            audio_path,
+            duration,
+            intro_seconds,
+            allow_approximate,
+            video_width,
+            video_height,
         )
-        title_path = create_title_overlay(audio_record.title)
+        title_path = create_title_overlay(audio_record.title, video_width, video_height)
         control.report("Randare MP4")
         output_path = _render_video(
             background_path,
@@ -323,6 +343,9 @@ def generate_video_record(
             intro_seconds,
             crop_position,
             control,
+            video_width,
+            video_height,
+            video_fps,
         )
         return update_record(
             VideoGeneration,

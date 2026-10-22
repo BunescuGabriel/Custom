@@ -9,11 +9,11 @@ from src.config import MAX_AUDIO_SECONDS
 
 def audio_duration(path: Path) -> float:
     if not path.is_file() or path.stat().st_size == 0:
-        raise ValueError("Fișierul MP3 lipsește sau este gol.")
+        raise ValueError("The MP3 file is missing or empty.")
     try:
         duration = float(MP3(path).info.length)
     except (MutagenError, OSError, ValueError) as error:
-        raise ValueError("Fișierul MP3 este deteriorat sau nu poate fi citit.") from error
+        raise ValueError("The MP3 file is corrupt or cannot be read.") from error
     if not math.isfinite(duration) or not 0 < duration <= MAX_AUDIO_SECONDS:
-        raise ValueError("Durata MP3 nu este validă sau depășește 10 minute.")
+        raise ValueError("The MP3 duration is invalid or exceeds 10 minutes.")
     return duration

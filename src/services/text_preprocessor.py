@@ -11,7 +11,7 @@ def clean_text(text: str) -> str:
 def make_title(text: str, max_length: int = 140) -> str:
     cleaned_text = clean_text(text)
     if not cleaned_text:
-        return "Audio fara titlu"
+        return "Untitled audio"
 
     first_line = cleaned_text.splitlines()[0]
     if len(first_line) <= max_length:

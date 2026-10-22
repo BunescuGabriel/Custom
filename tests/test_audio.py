@@ -86,7 +86,7 @@ def test_tts_failure_keeps_failed_record(isolated_store, audio_parameters, monke
         generation_service.generate_audio_record(**audio_parameters)
     record = list_audio_generations()[0]
     assert record.status == "failed"
-    assert "expirat" in record.error_message
+    assert "timed out" in record.error_message
 
 
 @pytest.mark.parametrize(

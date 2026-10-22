@@ -16,9 +16,9 @@ from src.services.video_service import _validate_background, validate_video_tool
 def save_background(name: str, data: bytes) -> Path:
     extension = Path(name).suffix.lower()
     if extension not in {".mp4", ".m4v", ".mov", ".webm"}:
-        raise ValueError("Fundalul trebuie să fie MP4, M4V, MOV sau WebM.")
+        raise ValueError("The background must be MP4, M4V, MOV, or WebM.")
     if not 0 < len(data) <= MAX_UPLOAD_BYTES:
-        raise ValueError("Fundalul trebuie să aibă între 1 octet și 100 MB.")
+        raise ValueError("The background must be between 1 byte and 100 MB.")
     validate_video_tools()
     BACKGROUND_DIR.mkdir(parents=True, exist_ok=True)
     destination = BACKGROUND_DIR / f"{hashlib.sha256(data).hexdigest()}{extension}"
@@ -73,7 +73,7 @@ def delete_generation(kind: str, record_id: int) -> None:
                     .filter_by(audio_generation_id=record_id)
                     .first()
                 ):
-                    raise ValueError("Șterge mai întâi videoclipurile asociate acestui audio.")
+                    raise ValueError("Delete videos that use this audio first.")
                 candidates = []
                 for column in ("file_path", "subtitle_path", "background_path"):
                     try:
@@ -96,7 +96,7 @@ def delete_generation(kind: str, record_id: int) -> None:
                 referenced = referenced_paths(session)
             safe_unlink(*(path for path in candidates if path not in referenced))
     except Timeout as error:
-        raise ValueError("Ștergerea este disponibilă după oprirea generării active.") from error
+        raise ValueError("Deletion is available after the active generation stops.") from error
 
 
 def cleanup_orphans(minimum_age_hours: int = 24) -> tuple[int, int]:
@@ -121,7 +121,7 @@ def cleanup_orphans(minimum_age_hours: int = 24) -> tuple[int, int]:
                     removed += 1
                     freed += size
     except Timeout as error:
-        raise ValueError("Curățarea este disponibilă după oprirea generării active.") from error
+        raise ValueError("Cleanup is available after the active generation stops.") from error
     return removed, freed
 
 
@@ -133,9 +133,7 @@ def delete_job(job_id: str) -> None:
                 if row is not None:
                     session.delete(row)
     except Timeout as error:
-        raise ValueError(
-            "Ștergerea lucrărilor este disponibilă după oprirea generării active."
-        ) from error
+        raise ValueError("Job deletion is available after the active generation stops.") from error
 
 
 def storage_bytes() -> int:

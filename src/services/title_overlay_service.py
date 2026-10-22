@@ -34,7 +34,7 @@ def _wrap_title(
 ) -> list[str]:
     words = title.upper().split()
     if not words:
-        return ["VIDEO FARA TITLU"]
+        return ["UNTITLED VIDEO"]
 
     lines: list[str] = []
     current_line = ""
@@ -87,7 +87,7 @@ def resolve_font() -> str:
         except OSError:
             continue
     raise TitleOverlayError(
-        "Instalează DejaVu Sans sau setează VIDEO_TITLE_FONT_PATH la un font cu diacritice și chirilice."
+        "Install DejaVu Sans or set VIDEO_TITLE_FONT_PATH to a font with Romanian and Cyrillic characters."
     )
 
 
@@ -95,23 +95,27 @@ def _load_font(font_size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(resolve_font(), font_size)
 
 
-def _make_title_layout(title: str) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+def _make_title_layout(
+    title: str, video_width: int = VIDEO_WIDTH
+) -> tuple[ImageFont.FreeTypeFont, list[str]]:
     measurement_image = Image.new("RGBA", (1, 1))
     measurement_draw = ImageDraw.Draw(measurement_image)
+    max_text_width = min(VIDEO_TITLE_MAX_TEXT_WIDTH, video_width - 160)
     for font_size in range(VIDEO_TITLE_FONT_SIZE, VIDEO_TITLE_MIN_FONT_SIZE - 1, -2):
         font = _load_font(font_size)
-        lines = _wrap_title(title, measurement_draw, font, VIDEO_TITLE_MAX_TEXT_WIDTH)
+        lines = _wrap_title(title, measurement_draw, font, max_text_width)
         if len(lines) <= VIDEO_TITLE_MAX_LINES and all(
-            _measure_text(measurement_draw, line, font) <= VIDEO_TITLE_MAX_TEXT_WIDTH
-            for line in lines
+            _measure_text(measurement_draw, line, font) <= max_text_width for line in lines
         ):
             return font, lines
 
-    raise TitleOverlayError("Titlul nu încape în cadru. Scurtează titlul.")
+    raise TitleOverlayError("The title does not fit in the frame. Shorten the title.")
 
 
-def create_title_overlay(title: str) -> Path:
-    font, lines = _make_title_layout(title)
+def create_title_overlay(
+    title: str, video_width: int = VIDEO_WIDTH, video_height: int = VIDEO_HEIGHT
+) -> Path:
+    font, lines = _make_title_layout(title, video_width)
     measurement_image = Image.new("RGBA", (1, 1))
     measurement_draw = ImageDraw.Draw(measurement_image)
     ascent, descent = font.getmetrics()
@@ -125,8 +129,8 @@ def create_title_overlay(title: str) -> Path:
     padding_y = 42
     image_width = text_width + (padding_x + border) * 2
     image_height = text_height + (padding_y + border) * 2
-    if image_width > VIDEO_WIDTH - 80 or image_height > VIDEO_HEIGHT - 160:
-        raise TitleOverlayError("Titlul nu încape în cadrul vertical.")
+    if image_width > video_width - 80 or image_height > video_height - 160:
+        raise TitleOverlayError("The title does not fit in the selected frame.")
     image = Image.new("RGBA", (image_width, image_height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
 
