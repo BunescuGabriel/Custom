@@ -11,6 +11,10 @@ from src.db.database import get_session
 from src.db.models import AudioGeneration, GenerationJob, VideoGeneration
 from src.db.repositories import create_job, get_record, update_record
 from src.services.audio_validation import audio_duration
+from src.services.bilingual_vocabulary_service import (
+    generate_bilingual_vocabulary_audio,
+    validate_bilingual_request,
+)
 from src.services.form_service import validate_request
 from src.services.generation_service import generate_audio_record
 from src.services.operations import GenerationCancelled, OperationControl, describe_error
@@ -82,6 +86,15 @@ def _execute_job(job_id: str, parameters: dict, lock: FileLock) -> None:
     try:
         update(status="running", stage="Verificare date")
         control.check()
+        if parameters.get("kind") == "bilingual_vocabulary":
+            output_path = generate_bilingual_vocabulary_audio(parameters["vocabulary"], control)
+            parameters["result"] = {
+                "file_path": str(output_path),
+                "file_name": output_path.name,
+            }
+            update(parameters=json.dumps(parameters, ensure_ascii=False))
+            update(status="completed", stage="Finalizat")
+            return
         if parameters.get("background_path"):
             validate_video_tools()
             _validate_background(resolve_media_path(parameters["background_path"]), control)
@@ -125,7 +138,10 @@ def _execute_job(job_id: str, parameters: dict, lock: FileLock) -> None:
 
 def submit_job(parameters: dict) -> str:
     snapshot = json.loads(json.dumps(parameters))
-    validate_request(snapshot["audio"])
+    if snapshot.get("kind") == "bilingual_vocabulary":
+        validate_bilingual_request(snapshot["vocabulary"])
+    else:
+        validate_request(snapshot["audio"])
     lock = generation_lock()
     try:
         lock.acquire()

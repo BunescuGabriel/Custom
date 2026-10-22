@@ -18,4 +18,4 @@ LANGUAGE_LABELS = {
     "Spaniola": "Spaniolă",
 }
 CROP_LABELS = {"left": "Stânga", "center": "Centru", "right": "Dreapta"}
-PAGES = ["Generator", "Istoric audio", "Istoric video", "Lucrări și stocare"]
+PAGES = ["Generator", "Vocabular bilingv", "Istoric audio", "Istoric video", "Lucrări și stocare"]

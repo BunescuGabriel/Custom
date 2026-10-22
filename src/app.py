@@ -9,6 +9,7 @@ from src.ui.history_view import render_history_view
 from src.ui.jobs_view import render_jobs_view
 from src.ui.labels import PAGES
 from src.ui.video_history_view import render_video_history_view
+from src.ui.vocabulary_view import render_vocabulary_view
 
 
 def _render_styles() -> None:
@@ -54,6 +55,7 @@ def run_app() -> None:
             PAGES,
             (
                 render_generator_view,
+                render_vocabulary_view,
                 render_history_view,
                 render_video_history_view,
                 render_jobs_view,
