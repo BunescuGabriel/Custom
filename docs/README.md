@@ -1,5 +1,7 @@
 # Text to Audio and Video
 
+![Custom dashboard](dasboard.png)
+
 Local MP3 and vertical MP4 generation with cached audio, captions, and local
 history. It requires Python **3.13** on Windows or Linux. macOS also needs a
 compatible font for MP4 title rendering.
